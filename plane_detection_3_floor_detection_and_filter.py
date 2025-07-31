@@ -19,7 +19,7 @@ table_height_range = (0.5, 1.2)  # Tables are typically 0.5-1.2m high
 desk_height_range = (0.6, 0.9)   # Desks are typically 0.6-0.9m high
 counter_height_range = (0.8, 1.0) # Counters are typically 0.8-1.0m high
 
-for i in range(350):  # for all scenes
+for i in range(1000):  # for all scenes
     img_id = format(i+1, '06d')
     print('processing {}'.format(img_id))
     
@@ -133,11 +133,23 @@ for i in range(350):  # for all scenes
                         })
                 
                 # Sort surfaces by area (largest first)
+                # Sort surfaces by area (largest first) and print debug info
                 for surface_type in output_data['surfaces']:
                     output_data['surfaces'][surface_type].sort(
                         key=lambda x: x['stats']['area'], 
                         reverse=True
                     )
+
+                    # Debug: print surface info
+                    for surface in output_data['surfaces'][surface_type]:
+                        stats = surface['stats']
+                        print(f"  Surface type: {surface_type}")
+                        print(f"    Area: {stats['area']:.3f}")
+                        print(f"    Mean Z: {stats['mean'][2]:.3f}")
+                        print(f"    Max Z: {stats['max'][2]:.3f}")
+                        print(f"    Min Z: {stats['min'][2]:.3f}")
+                        print(f"    Height above floor: {stats.get('height_above_floor', 'N/A')}")
+
                 
                 # Save enhanced plane statistics
                 with open(os.path.join(root_path, 'enhanced_plane_statistics.json'), "w") as outfile:
@@ -150,14 +162,3 @@ for i in range(350):  # for all scenes
         print(f'############################### no_horizontal_planes for image {img_id}')
 
 print("Enhanced plane detection complete!")
-# DEBUG: Print surface information
-print(f"Surface type: {surface_info['type']}")
-print(f"Surface center Z: {surface_center_Z}")
-print(f"Surface max Z: {surface_info['stats']['max'][2]}")
-print(f"Surface min Z: {surface_info['stats']['min'][2]}")
-print(f"Surface mean Z: {surface_info['stats']['mean'][2]}")  # Add this line
-
-# Use MEAN instead of MAX for object placement:
-inobject.location.x = best_parameter['sample_position_X'] 
-inobject.location.y = best_parameter['sample_position_Y']
-inobject.location.z = surface_info['stats']['mean'][2] + 0.1  # Changed from max to mean

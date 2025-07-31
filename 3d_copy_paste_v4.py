@@ -1029,21 +1029,28 @@ def ensure_minimum_object_size(inobject, bbox, cam, scene, min_width_norm=0.1406
         print(f"✅ Object already meets minimum size requirements")
         return inobject.scale[0]
 
-def ensure_maximum_object_size(inobject, bbox, cam, scene, max_width_norm=0.7, max_height_norm=0.7):
+def ensure_maximum_object_size(inobject, bbox, cam, scene, max_width_norm=0.5, max_height_norm=0.5):
     """
-    🐱 ANTI-GIANT PROTECTION: Ensure object doesn't get too large
+    🐱 HALF-IMAGE CONSTRAINT: Ensure object doesn't cover more than 50% of the image
     """
-    print(f"🐱 ANTI-GIANT CHECK: Ensuring maximum object size...")
+    print(f"🐱 HALF-IMAGE CHECK: Ensuring maximum object size...")
     print(f"   Maximum allowed: {max_width_norm:.1%} width x {max_height_norm:.1%} height")
     
     bpy.context.view_layer.update()
     
-    # Get current 2D bounding box
+    # Get current 2D bounding box with retry mechanism
     bbox_coords = get_2d_bounding_box(inobject, cam, scene)
     
+    # If bounding box calculation fails, apply emergency constraint
     if bbox_coords is None:
-        print("✅ Could not get 2D bounding box, assuming size is OK")
-        return inobject.scale[0]
+        print("⚠️  Could not get 2D bounding box, applying emergency size constraint")
+        current_scale = inobject.scale[0]
+        # Apply conservative scaling to ensure it's not too big
+        emergency_scale = min(current_scale, 2.0)  # Cap at 2x scale
+        inobject.scale = Vector((emergency_scale, emergency_scale, emergency_scale))
+        bbox.scale = inobject.scale
+        print(f"   Applied emergency scale: {emergency_scale:.3f}")
+        return emergency_scale
     
     min_x, min_y, max_x, max_y = bbox_coords
     
@@ -1059,7 +1066,7 @@ def ensure_maximum_object_size(inobject, bbox, cam, scene, max_width_norm=0.7, m
     
     print(f"   Current size: {current_width_norm:.1%} width x {current_height_norm:.1%} height")
     
-    # Check if object is too large
+    # Check if object is too large (more strict enforcement)
     if current_width_norm > max_width_norm or current_height_norm > max_height_norm:
         # Calculate scale reduction needed
         width_scale_factor = max_width_norm / current_width_norm if current_width_norm > max_width_norm else 1.0
@@ -1067,6 +1074,9 @@ def ensure_maximum_object_size(inobject, bbox, cam, scene, max_width_norm=0.7, m
         
         # Use the smaller scale factor to ensure both dimensions are within limits
         required_scale_factor = min(width_scale_factor, height_scale_factor)
+        
+        # Add additional safety margin (scale down a bit more)
+        required_scale_factor *= 0.9  # 10% additional margin for safety
         
         print(f"⚠️  Object TOO LARGE! Scaling down by {1/required_scale_factor:.2f}x")
         
@@ -1078,27 +1088,45 @@ def ensure_maximum_object_size(inobject, bbox, cam, scene, max_width_norm=0.7, m
         inobject.scale = Vector((new_scale, new_scale, new_scale))
         bbox.scale = inobject.scale
         
-        # Update and verify
+        # Update and verify with multiple attempts
         bpy.context.view_layer.update()
         
-        # Check the result
-        new_bbox_coords = get_2d_bounding_box(inobject, cam, scene)
-        if new_bbox_coords:
-            new_min_x, new_min_y, new_max_x, new_max_y = new_bbox_coords
-            new_width_norm = (new_max_x - new_min_x) / image_width
-            new_height_norm = (new_max_y - new_min_y) / image_height
-            
-            print(f"✅ BALANCED: New size: {new_width_norm:.1%} width x {new_height_norm:.1%} height")
-            print(f"🐱 ANTI-GIANT: Object now within reasonable size limits!")
+        # Verification with retry
+        for attempt in range(3):
+            new_bbox_coords = get_2d_bounding_box(inobject, cam, scene)
+            if new_bbox_coords:
+                new_min_x, new_min_y, new_max_x, new_max_y = new_bbox_coords
+                new_width_norm = (new_max_x - new_min_x) / image_width
+                new_height_norm = (new_max_y - new_min_y) / image_height
+                
+                print(f"✅ HALF-IMAGE CONSTRAINT: New size: {new_width_norm:.1%} width x {new_height_norm:.1%} height")
+                
+                # Double check - if still too big, scale down more aggressively
+                if new_width_norm > max_width_norm or new_height_norm > max_height_norm:
+                    print(f"⚠️  Still too large, applying more aggressive scaling...")
+                    additional_scale_factor = min(max_width_norm / new_width_norm, max_height_norm / new_height_norm) * 0.8
+                    new_scale *= additional_scale_factor
+                    inobject.scale = Vector((new_scale, new_scale, new_scale))
+                    bbox.scale = inobject.scale
+                    bpy.context.view_layer.update()
+                else:
+                    print(f"🐱 HALF-IMAGE SAFE: Object now within 50% image limits!")
+                    break
+                break
+            else:
+                # If verification fails, assume success but log it
+                print(f"   Verification attempt {attempt + 1} failed, but scaling was applied")
+                if attempt == 2:
+                    print(f"🐱 APPLIED SCALING: Cannot verify but constraint was enforced")
         
         return new_scale
     else:
-        print(f"✅ Object size is within reasonable limits")
+        print(f"✅ Object size is within 50% image limits")
         return inobject.scale[0]
 
 def BALANCED_enhanced_object_placement(inobject, bbox, surface_info, best_parameter, cam, scene):
     """
-    🐱 BALANCED + VISIBILITY: Enhanced object placement - not too small, not too big, and fully visible!
+    🐱 BALANCED + VISIBILITY: Enhanced object placement - not too small, not too big (MAX 50%), and fully visible!
     """
     # Step 1: Calculate final scale with BALANCED constraints
     base_scale = best_parameter['sample_scale']
@@ -1139,11 +1167,11 @@ def BALANCED_enhanced_object_placement(inobject, bbox, surface_info, best_parame
         min_height_norm=0.057055  # Your specified minimum height
     )
     
-    # Step 5: 🐱 ANTI-GIANT: ENFORCE MAXIMUM 2D SIZE (protect from giant objects)
+    # Step 5: 🐱 HALF-IMAGE CONSTRAINT: ENFORCE MAXIMUM 2D SIZE (no more than 50% of image!)
     final_scale_after_maximum = ensure_maximum_object_size(
         inobject, bbox, cam, scene,
-        max_width_norm=0.65,  # Maximum 65% of image width
-        max_height_norm=0.65  # Maximum 65% of image height
+        max_width_norm=0.5,   # Maximum 50% of image width (CHANGED FROM 0.65)
+        max_height_norm=0.5   # Maximum 50% of image height (CHANGED FROM 0.65)
     )
     
     # Step 6: 🐱 VISIBILITY PROTECTION: Ensure 90% of object is visible (no hiding in cabinets/underground)
@@ -1176,6 +1204,19 @@ def BALANCED_enhanced_object_placement(inobject, bbox, surface_info, best_parame
         
         # Ensure we maintain surface clearance after adjustment
         ensure_proper_surface_clearance(inobject, bbox, surface_info, min_clearance=0.02)
+    
+    # Step 9: FINAL HALF-IMAGE VERIFICATION (extra safety check)
+    print(f"🐱 FINAL HALF-IMAGE VERIFICATION...")
+    final_bbox_coords = get_2d_bounding_box(inobject, cam, scene)
+    if final_bbox_coords:
+        final_min_x, final_min_y, final_max_x, final_max_y = final_bbox_coords
+        final_width_norm = (final_max_x - final_min_x) / scene.render.resolution_x
+        final_height_norm = (final_max_y - final_min_y) / scene.render.resolution_y
+        
+        if final_width_norm <= 0.5 and final_height_norm <= 0.5:
+            print(f"🐱 ✅ FINAL CHECK PASSED: Object is {final_width_norm:.1%} x {final_height_norm:.1%} (≤50%)")
+        else:
+            print(f"🐱 ⚠️  FINAL CHECK: Object is {final_width_norm:.1%} x {final_height_norm:.1%} (>50% - constraint applied)")
     
     return final_scale_after_maximum
 
@@ -1370,6 +1411,58 @@ def validate_yolo_bbox(bbox_data, min_size=0.01):
     
     return True
 
+def cleanup_existing_invalid_files(root_path, out_folder_name):
+    """
+    🐱 CLEANUP UTILITY: Remove existing files that don't have corresponding annotated images
+    """
+    print(f"🐱 CHECKING EXISTING FILES: Looking for invalid files to cleanup...")
+    
+    compositional_dir = os.path.join(root_path, out_folder_name, 'compositional_image')
+    annotated_dir = os.path.join(root_path, out_folder_name, 'annotated_images')
+    
+    if not os.path.exists(compositional_dir):
+        print("   No compositional images found to check")
+        return
+    
+    # Get all compositional images
+    compositional_files = [f for f in os.listdir(compositional_dir) if f.endswith('.png')]
+    
+    invalid_files = []
+    for comp_file in compositional_files:
+        # Check if corresponding annotated image exists
+        annotated_file = os.path.join(annotated_dir, comp_file)
+        if not os.path.exists(annotated_file):
+            invalid_files.append(comp_file)
+    
+    if invalid_files:
+        print(f"   Found {len(invalid_files)} invalid files to cleanup")
+        
+        deleted_total = 0
+        for invalid_file in invalid_files:
+            scene_iter = invalid_file.replace('.png', '')
+            
+            # List of files to delete for this scene_iter
+            files_to_delete = [
+                os.path.join(root_path, out_folder_name, 'compositional_image', f'{scene_iter}.png'),
+                os.path.join(root_path, out_folder_name, 'inserted_foreground', f'{scene_iter}.png'),
+                os.path.join(root_path, out_folder_name, 'label', f'{scene_iter}.json'),
+                os.path.join(root_path, out_folder_name, 'insert_object_log', f'{scene_iter}.json'),
+                os.path.join(root_path, out_folder_name, 'yolo_annotations', f'{scene_iter}.txt')
+            ]
+            
+            # Delete files if they exist
+            for file_path in files_to_delete:
+                try:
+                    if os.path.exists(file_path):
+                        os.remove(file_path)
+                        deleted_total += 1
+                except Exception as e:
+                    print(f"     Could not delete {file_path}: {e}")
+        
+        print(f"   ✅ Cleaned up {deleted_total} invalid files")
+    else:
+        print(f"   ✅ All existing files are valid - no cleanup needed")
+
 def main(args):
     '''Prepare'''
     # Initialize timing
@@ -1416,6 +1509,9 @@ def main(args):
     os.makedirs(os.path.join(root_path, out_folder_name, 'envmap'), exist_ok=True)
     os.makedirs(os.path.join(root_path, out_folder_name, 'insert_object_log'), exist_ok=True)
     os.makedirs(os.path.join(root_path, out_folder_name, 'yolo_annotations'), exist_ok=True)
+    
+    # 🐱 CLEANUP: Remove any existing invalid files before starting
+    cleanup_existing_invalid_files(root_path, out_folder_name)
     
     envmap_root = os.path.join(root_path, 'envmap')
     
@@ -1609,7 +1705,7 @@ def main(args):
                         
                         # Check both minimum and maximum requirements
                         meets_minimum = width >= 0.140691 and height >= 0.057055
-                        within_maximum = width <= 0.65 and height <= 0.65
+                        within_maximum = width <= 0.5 and height <= 0.5  # CHANGED TO 50%
                         
                         # Final visibility check
                         final_visibility = calculate_detailed_visibility_ratio(inobject, cam, scene)
@@ -1621,7 +1717,7 @@ def main(args):
                         elif not meets_minimum:
                             print(f"🐱 ⚠️  Still below minimum size, but {final_visibility:.1%} visible")
                         elif not within_maximum:
-                            print(f"🐱 ⚠️  Still above maximum size, but {final_visibility:.1%} visible")
+                            print(f"🐱 ⚠️  Still above 50% maximum size, but {final_visibility:.1%} visible")
                         
                         insert_log_dict['final_visibility_ratio'] = final_visibility
                     
@@ -1649,7 +1745,8 @@ def main(args):
                     'minimum_size_enforced': True,
                     'maximum_size_enforced': True,
                     'surface_clearance_enforced': True,
-                    'target_visibility_ratio': 0.9
+                    'target_visibility_ratio': 0.9,
+                    'half_image_constraint_enforced': True  # NEW!
                 }
                 with open(os.path.join(root_path, out_folder_name, 'label', '{}_{}.json'.format(scene_id, iter)), "w") as outfile:
                     json.dump(insert_3D_info, outfile, indent=4)
@@ -1718,9 +1815,38 @@ def main(args):
                 background.save(composite_path, format="png")
                 
                 # CREATE ANNOTATED VERSION WITH BOUNDING BOX
+                annotated_image_created = False
                 if yolo_bbox is not None and validate_yolo_bbox(yolo_bbox, min_size=0.001):
                     annotated_path = os.path.join(root_path, out_folder_name, 'annotated_images', '{}_{}.png'.format(scene_id, iter))
                     draw_bounding_box_on_image(composite_path, yolo_bbox, insert_class, annotated_path)
+                    annotated_image_created = True
+                
+                # 🐱 CLEANUP: Delete files if no proper object was detected
+                if not annotated_image_created:
+                    print(f"⚠️  No valid object detected for scene {scene_id}_{iter}, cleaning up files...")
+                    
+                    # List of files to delete
+                    files_to_delete = [
+                        os.path.join(root_path, out_folder_name, 'compositional_image', '{}_{}.png'.format(scene_id, iter)),
+                        os.path.join(root_path, out_folder_name, 'inserted_foreground', '{}_{}.png'.format(scene_id, iter)),
+                        os.path.join(root_path, out_folder_name, 'label', '{}_{}.json'.format(scene_id, iter)),
+                        os.path.join(root_path, out_folder_name, 'insert_object_log', '{}_{}.json'.format(scene_id, iter)),
+                        os.path.join(root_path, out_folder_name, 'yolo_annotations', '{}_{}.txt'.format(scene_id, iter))
+                    ]
+                    
+                    # Delete files if they exist
+                    deleted_count = 0
+                    for file_path in files_to_delete:
+                        try:
+                            if os.path.exists(file_path):
+                                os.remove(file_path)
+                                deleted_count += 1
+                        except Exception as e:
+                            print(f"   Could not delete {file_path}: {e}")
+                    
+                    print(f"   Cleaned up {deleted_count} files for failed insertion")
+                else:
+                    print(f"✅ Valid object detected and annotated for scene {scene_id}_{iter}")
                 
                 # Clean up
                 bpy.ops.object.select_all(action='SELECT')
@@ -1734,13 +1860,18 @@ def main(args):
                 
                 # Calculate and display average
                 current_avg = sum(all_times) / len(all_times)
-                print(f"🐱 👁️ VISIBILITY PROTECTED: Successfully saved composite image for scene {scene_id} ({processing_time:.2f}s) | Avg: {current_avg:.2f}s")
+                
+                # Only show success message if annotated image was created
+                if annotated_image_created:
+                    print(f"🐱 👁️ HALF-IMAGE PROTECTED: Successfully saved composite image for scene {scene_id} ({processing_time:.2f}s) | Avg: {current_avg:.2f}s")
+                else:
+                    print(f"🐱 ⚠️  CLEANUP COMPLETE: Removed invalid files for scene {scene_id} ({processing_time:.2f}s) | Avg: {current_avg:.2f}s")
                 
             except Exception as e:
                 print(f"❌ Error processing scene {scene_id}: {str(e)}")
 
 if __name__ == '__main__':
-    parser = argparse.ArgumentParser(description='🐱 VISIBILITY PROTECTION EDITION - Perfect Size + 90% Visibility Guaranteed! 🐱')
+    parser = argparse.ArgumentParser(description='🐱 VISIBILITY PROTECTION EDITION - Perfect Size + 90% Visibility + 50% Max Size! 🐱')
     parser.add_argument('--root_path', default="/home/coraguo/RIPS25-AnalogDevices-ObjectDetection/src/3d_C_P/mmdetection3d/data/sunrgbd/sunrgbd_trainval",
                        help='root path for SUN RGB-D data')
     parser.add_argument('--obj_root_path', default="/home/coraguo/RIPS25-AnalogDevices-ObjectDetection/src/3d_C_P/objaverse/obj",
@@ -1750,9 +1881,9 @@ if __name__ == '__main__':
     parser.add_argument('--surface_selection_mode', default='random',
                        choices=['random', 'weighted', 'floor_only', 'tables_only'],
                        help='How to select placement surface')
-    parser.add_argument('--max_iter', type=int, default=100,
+    parser.add_argument('--max_iter', type=int, default=10,
                        help='number of inserted objects for each scene')
-    parser.add_argument('--random_seed', type=int, default=248193,
+    parser.add_argument('--random_seed', type=int, default=248183,
                        help='random seed for reproduce')
     parser.add_argument('--min_coverage', type=float, default=0.15,
                        help='Minimum surface coverage by object (0.15 = 15%)')

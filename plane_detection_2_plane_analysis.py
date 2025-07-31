@@ -8,7 +8,7 @@ import tqdm
 
 source_root = '/home/coraguo/RIPS25-AnalogDevices-ObjectDetection/src/3d_C_P/mmdetection3d/data/sunrgbd/sunrgbd_trainval' # where the original data is
 
-for i in range(350): # for all 3000, 6000 scenes
+for i in range(1000): # for all 3000, 6000 scenes
 
     
     img_id = format(i+1, '06d') # '000063' # '0065', '000063' '010335'
