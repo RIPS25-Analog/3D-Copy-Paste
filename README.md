@@ -10,13 +10,13 @@ This repository provides a pipeline for 3D Copy-Paste data augmentation by inser
 
 Please fork the following repositories under our workspace:
 
-- **[mmdetection3d](https://github.com/rips25analog2025/mmdetection3d)** - 3D object detection framework
-- **[InverseRenderingOfIndoorScene](https://github.com/rips25analog2025/InverseRenderingOfIndoorScene)** - Indoor scene inverse rendering
-- **[RGBDPlaneDetection](https://github.com/rips25analog2025/RGBDPlaneDetection)** - Plane detection for object placement
+- **[mmdetection3d](https://github.com/RIPS25-Analog/mmdetection3d)** - 3D object detection framework
+- **[InverseRenderingOfIndoorScene](https://github.com/RIPS25-Analog/InverseRenderingOfIndoorScene)** - Indoor scene inverse rendering
+- **[RGBDPlaneDetection](https://github.com/RIPS25-Analog/RGBDPlaneDetection)** - Plane detection for object placement
 
 ## Environment Setup
 ### Software Used: 
-python and MATLAB is require for this project
+Python 3.10.12, MATLAB, and C++ is require for this project
 
 ### Packages
 please install the following packages
@@ -85,6 +85,26 @@ python 3d_copy_paste.py \                          # Execute the Python script u
   --istrength 4                                    # Environment lighting intensity multiplier (higher = brighter lighting)
 
 ``` 
+
+## **Differences from Original 3D Copy-Paste**
+
+### **Enhanced Object Placement**
+- **3D collision detection** replaces 2D checks, eliminating floating objects
+- **Multi-object scenes** support simultaneous placement vs. single-object limitation
+- **Six-sided rotation** allows any face orientation vs. Z-axis only
+- **Multi-surface placement** extends beyond floor to tables, desks, and furniture
+
+### **Improved Visibility Control**
+- **Automatic scaling** ensures consistent object size across models
+- **Real-time size measurement** maintains minimum screen coverage
+- **Camera projection mathematics** prevents oversized or undersized objects
+
+### **Physical Realism**
+- **Perfect ground contact** through precise bottom-point calculation
+- **Sequential obstacle detection** for collision-free multi-object placement
+- **Surface boundary compliance** with up to 2000 placement attempts per object
+
+The enhanced framework transforms single-object, floor-restricted placement into a comprehensive multi-surface, multi-object system with realistic physics and diverse orientations.
 
 
 ## Extra Tools

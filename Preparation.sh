@@ -10,6 +10,7 @@ Background_dir="path/to/SUNRGBD_Dataset"
 MATLAB_dir="path/to/MATLAB"
 
 # Step 1: Create directory structure and move files
+echo "Setting up directories and moving files..."
 cd "$mmdetection3d_dir"
 mkdir -p ./data/sunrgbd/OFFICIAL_SUNRGBD
 mv "$Background_dir/SUNRGBD.zip" "./data/sunrgbd/OFFICIAL_SUNRGBD/" 2>/dev/null || true
@@ -20,12 +21,15 @@ mv "$Background_dir/SUNRGBDtoolbox.zip" "./data/sunrgbd/OFFICIAL_SUNRGBD/" 2>/de
 cd ./data/sunrgbd/OFFICIAL_SUNRGBD
 [ -f "SUNRGBD.zip" ] && unzip -q SUNRGBD.zip
 [ -f "SUNRGBDtoolbox.zip" ] && unzip -q SUNRGBDtoolbox.zip
+echo "Directories set up and files moved."
 
 # Step 2: Extract point clouds and annotations using MATLAB
 cd "$MATLAB_dir"
 matlab -nosplash -nodesktop -r 'extract_split; quit;' > /dev/null 2>&1
 matlab -nosplash -nodesktop -r 'extract_rgbd_data_v2; quit;' > /dev/null 2>&1
 matlab -nosplash -nodesktop -r 'extract_rgbd_data_v1; quit;' > /dev/null 2>&1
+
+echo "Point clouds and annotations extracted."
 
 # Step 3: Generate training data
 cd "$mmdetection3d_dir"
