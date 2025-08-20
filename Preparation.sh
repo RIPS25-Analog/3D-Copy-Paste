@@ -7,6 +7,7 @@ RGBDPlaneDetection_dir="path/to/RGBDPlaneDetection"
 InverseRendering_dir="path/to/InverseRendering"
 3D_Models_dir="path/to/3D-Models"
 Background_dir="path/to/SUNRGBD_Dataset"
+MATLAB_dir="path/to/MATLAB"
 
 # Step 1: Create directory structure and move files
 cd "$mmdetection3d_dir"
@@ -23,7 +24,7 @@ cd ./data/sunrgbd/OFFICIAL_SUNRGBD
 [ -f "SUNRGBDtoolbox.zip" ] && unzip -q SUNRGBDtoolbox.zip
 
 # Step 2: Extract point clouds and annotations using MATLAB
-cd ../matlab
+cd "$MATLAB_dir"
 
 matlab -nosplash -nodesktop -r 'extract_split; quit;' > /dev/null 2>&1
 matlab -nosplash -nodesktop -r 'extract_rgbd_data_v2; quit;' > /dev/null 2>&1
@@ -40,7 +41,7 @@ python tools/create_data.py sunrgbd \
 echo "Resizing images to 640x480..."
 
 # Step 4: Resize images
-cd "$3D_CP_DIR"
+cd "$3D_CP_DIR/src"
 python plane_detection_1_resize_to_640480.py
 
 echo "Running plane detection..."

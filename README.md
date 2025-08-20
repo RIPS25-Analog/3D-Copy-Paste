@@ -15,8 +15,10 @@ Please fork the following repositories under our workspace:
 - **[RGBDPlaneDetection](https://github.com/[username]/RGBDPlaneDetection)** - Plane detection for object placement
 
 ### Environment Setup
+## Software Used: 
 python and MATLAB is require for this project
 
+## Packages
 please install the following packages
 ```bash
 pip install -r 
@@ -25,31 +27,51 @@ pip install -r
 
 ## Quick Start
 
-> **Note:** For detailed explanations and modifications to the original 3D Copy-Paste implementation, please refer to [original README.md](docs/detailed_guide.md).
+> **Note:** For detailed explanations and insturctions of modifying the original 3D Copy-Paste implementation, please refer to [original README.md](Original_3D_Copy-Paste/Original_README.md).
 
 ### 1. Download SUN RGB-D Dataset
-
-Follow the instructions in the [SUN RGB-D setup guide](docs/sunrgbd_setup.md) to download and prepare the dataset.
+Go to [SUNRGBD dataset](https://rgbd.cs.princeton.edu/data/) and download:
+SUNRGBD.zip;
+SUNRGBDMeta2DBB_v2.mat;
+SUNRGBDMeta3DBB_v2.mat 
 
 ### 2. Prepare 3D Models
 
-Ensure your 3D models are in the supported format. See [3D Model Format Requirements](docs/model_formats.md) for details.
+Ensure your 3D models are in the supported format. 
+```
+3d_models/
+    |   ├── class_name_1
+    |   |   ├── instance1
+    |   |   |   ├── instance1.obj
+    |   |   |   ├── instance1.mtl
+    |   |   |   └── instance1.png
+    |   |   ├── instance2 
+    |   |   └── ...   
+    |   ├── class_name_2
+    |   ├── class_name_3
+    |   └── ...
+```
 
 ### 3. Pre-Data Generation Preparation
 
 ```bash
 bash Preparation.sh
 ```
+This step orgnaized the naccessary imformation from the background images and the 3d models
 
 ### 4. Generate Synthetic Data
 
 ```bash
-python generate_3d_copy_paste.py --config configs/default_config.yaml
+python 3d_copy_paste.py \                          # Execute the Python script using standard Python interpreter
+  --root_path "/path/to/your/sunrgbd/data" \       # Directory containing SUN RGB-D dataset (background images, camera calibration, plane data)
+  --obj_root_path "/path/to/your/3d/models" \      # Directory containing 3D object models (.obj files) to insert into scenes
+  --max_iter 5 \                                   # Generate 5 different variations for each scene in the dataset
+  --num_objects_per_scene 6 \                      # Place exactly 6 objects in each generated scene
+  --random_seed 12345 \                            # Set random seed for reproducible results across runs
+  --ilog 3 \                                       # Environment mapping log parameter (affects lighting calculations)
+  --istrength 4                                    # Environment lighting intensity multiplier (higher = brighter lighting)
+
 ``` 
-
-
-explanation on what we changed from original 3D Copy Paste, we have this file:
-
 
 
 ## Extra Tools
@@ -66,8 +88,7 @@ The repository includes several utility tools for 3D model processing:
 
 ## Output Structure
 
-<details>
-<summary>Click to expand output directory structure</summary>
+Output directory structure
 
 ```
 insertion_ilog2_istren2_context_[timestamp]/
@@ -79,8 +100,6 @@ insertion_ilog2_istren2_context_[timestamp]/
 ├── label/                   # 3D object detection labels (JSON)
 └── yolo_annotations/        # 2D YOLO format annotations (TXT)
 ```
-
-</details>
 
 <table>
 <tr>

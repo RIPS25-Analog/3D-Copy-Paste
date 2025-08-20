@@ -1,6 +1,6 @@
 """
 Multi-Object Scene Generation with 3D Placement and Collision Detection
-Academic implementation for synthetic dataset creation with YOLO annotations
+Modified for custom directory structure: class_name/instance/instance.obj
 """
 
 import bpy
@@ -46,6 +46,89 @@ def configure_rendering_engine() -> None:
     bpy.context.scene.cycles.samples = 128
     bpy.context.scene.cycles.preview_samples = 32
     bpy.context.scene.cycles.use_denoising = True
+
+
+def scan_3d_models_directory(models_root_path: str) -> dict:
+    """
+    Scan the 3D models directory structure and create object configuration.
+    
+    Args:
+        models_root_path: Root path containing class directories
+        
+    Returns:
+        Dictionary with class names mapped to YOLO categories containing instance paths
+    """
+    print(f"Scanning 3D models directory: {models_root_path}")
+    
+    # Define mapping from your class names to YOLO categories
+    class_mapping = {
+        # Map your actual class folder names to these categories
+        'can': 'can',
+        'toy_car': 'toy_car', 
+        'toy_vehicle': 'toy_car',  # Alternative name
+        'vehicle': 'toy_car',     # Alternative name
+        'car': 'toy_car',         # Alternative name
+        # All other classes will be treated as distractors
+    }
+    
+    target_objects_data = {
+        'can': [],
+        'toy_car': [],
+        'distractor': []
+    }
+    
+    if not os.path.exists(models_root_path):
+        print(f"Warning: Models directory not found: {models_root_path}")
+        return target_objects_data
+    
+    total_instances = 0
+    
+    # Scan each class directory
+    for class_name in os.listdir(models_root_path):
+        class_path = os.path.join(models_root_path, class_name)
+        
+        if not os.path.isdir(class_path):
+            continue
+            
+        print(f"  Found class: {class_name}")
+        
+        # Determine YOLO category for this class
+        yolo_category = class_mapping.get(class_name.lower(), 'distractor')
+        
+        class_instances = []
+        
+        # Scan instances in this class
+        for instance_name in os.listdir(class_path):
+            instance_path = os.path.join(class_path, instance_name)
+            
+            if not os.path.isdir(instance_path):
+                continue
+                
+            # Look for .obj file with same name as instance
+            obj_file = os.path.join(instance_path, f"{instance_name}.obj")
+            
+            if os.path.exists(obj_file):
+                # Store relative path from models root for consistency
+                relative_instance_path = os.path.join(class_name, instance_name)
+                class_instances.append({
+                    'id': f"{class_name}_{instance_name}",
+                    'class_name': class_name,
+                    'instance_name': instance_name,
+                    'relative_path': relative_instance_path,
+                    'obj_path': obj_file
+                })
+                total_instances += 1
+        
+        # Add instances to appropriate YOLO category
+        target_objects_data[yolo_category].extend(class_instances)
+        print(f"    {len(class_instances)} instances -> {yolo_category}")
+    
+    print(f"Total scanned: {total_instances} instances")
+    print(f"  Cans: {len(target_objects_data['can'])}")
+    print(f"  Toy cars: {len(target_objects_data['toy_car'])}")
+    print(f"  Distractors: {len(target_objects_data['distractor'])}")
+    
+    return target_objects_data
 
 
 def apply_enhanced_materials(obj: bpy.types.Object, obj_dir: str, obj_name: str, object_index: int) -> None:
@@ -153,19 +236,26 @@ def apply_enhanced_materials(obj: bpy.types.Object, obj_dir: str, obj_name: str,
             continue
 
 
-def load_and_insert_object(filepath: str, object_index: int) -> tuple:
+def load_and_insert_object(obj_info: dict, models_root_path: str, object_index: int) -> tuple:
     """
     Load 3D object from file with enhanced error handling.
     
     Args:
-        filepath: Path to the .obj file
+        obj_info: Dictionary containing object information
+        models_root_path: Root path to 3D models directory
         object_index: Index for naming and material assignment
         
     Returns:
         Tuple of (imported_object, bounding_box_object) or (None, None) if failed
     """
+    # Construct full path to the .obj file
+    filepath = obj_info['obj_path']
     obj_dir = os.path.dirname(filepath)
-    obj_name = os.path.splitext(os.path.basename(filepath))[0]
+    obj_name = obj_info['instance_name']
+    
+    if not os.path.exists(filepath):
+        print(f"Warning: Object file not found: {filepath}")
+        return None, None
     
     initial_objects = set(bpy.data.objects.keys())
     
@@ -233,7 +323,8 @@ def load_and_insert_object(filepath: str, object_index: int) -> tuple:
         
         return inobject, bbox
         
-    except Exception:
+    except Exception as e:
+        print(f"Error loading object {obj_info['id']}: {e}")
         current_objects = set(bpy.data.objects.keys())
         new_objects = current_objects - initial_objects
         for obj_name in new_objects:
@@ -579,27 +670,6 @@ def find_collision_free_placement(surface_info: dict, bbox_dims: Vector, all_pla
     }
 
 
-def load_target_objects_configuration(json_path: str) -> dict:
-    """
-    Load target objects configuration from JSON file.
-    
-    Args:
-        json_path: Path to JSON configuration file
-        
-    Returns:
-        Dictionary containing object categories and their model IDs
-    """
-    try:
-        with open(json_path, 'r') as f:
-            return json.load(f)
-    except Exception:
-        return {
-            'can': [],
-            'toy_car': [],
-            'distractor': []
-        }
-
-
 def create_object_selection_plan(target_objects_data: dict, num_objects_per_scene: int) -> list:
     """
     Create object selection plan with individual model selection.
@@ -622,10 +692,10 @@ def create_object_selection_plan(target_objects_data: dict, num_objects_per_scen
     
     if num_target_objects > 0:
         target_pool = []
-        for obj_id in target_objects_data['can']:
-            target_pool.append({'id': obj_id, 'class': 'can'})
-        for obj_id in target_objects_data['toy_car']:
-            target_pool.append({'id': obj_id, 'class': 'toy_car'})
+        for obj_info in target_objects_data['can']:
+            target_pool.append({**obj_info, 'yolo_class': 'can'})
+        for obj_info in target_objects_data['toy_car']:
+            target_pool.append({**obj_info, 'yolo_class': 'toy_car'})
         
         if len(target_pool) >= num_target_objects:
             selected_targets = random.sample(target_pool, num_target_objects)
@@ -635,7 +705,10 @@ def create_object_selection_plan(target_objects_data: dict, num_objects_per_scen
             num_distractors += num_target_objects - len(target_pool)
     
     if num_distractors > 0:
-        distractor_pool = [{'id': obj_id, 'class': 'distractor'} for obj_id in target_objects_data['distractor']]
+        distractor_pool = []
+        for obj_info in target_objects_data['distractor']:
+            distractor_pool.append({**obj_info, 'yolo_class': 'distractor'})
+        
         if len(distractor_pool) >= num_distractors:
             selected_distractors = random.sample(distractor_pool, num_distractors)
             selected_objects.extend(selected_distractors)
@@ -1102,14 +1175,18 @@ def main(args: argparse.Namespace) -> None:
     configure_rendering_engine()
     
     root_path = args.root_path
-    obj_root_path = args.obj_root_path
+    models_root_path = args.models_root_path
     
     with open(os.path.join(root_path, 'train_data_idx.txt')) as f:
         train_data_ids_raw = f.readlines()
     train_data_ids = ["{:06d}".format(int(id.split('\n')[0])) for id in train_data_ids_raw]
     
-    target_objects_json_path = os.path.join(obj_root_path, 'objaverse.json')
-    target_objects_data = load_target_objects_configuration(target_objects_json_path)
+    # Scan 3D models directory structure
+    target_objects_data = scan_3d_models_directory(models_root_path)
+    
+    if not any(target_objects_data.values()):
+        print("Error: No 3D models found in the specified directory structure")
+        return
     
     max_iter = args.max_iter
     num_objects_per_scene = args.num_objects_per_scene
@@ -1187,11 +1264,9 @@ def main(args: argparse.Namespace) -> None:
                     
                     for attempt in range(max_attempts_per_object):
                         try:
-                            obj_id = obj_info['id']
-                            insert_class = obj_info['class']
-                            obj_path = os.path.join(obj_root_path, obj_id, obj_id + '.obj')
+                            insert_class = obj_info['yolo_class']
                             
-                            inobject, bbox = load_and_insert_object(obj_path, obj_idx)
+                            inobject, bbox = load_and_insert_object(obj_info, models_root_path, obj_idx)
                             if inobject is None:
                                 continue
                             
@@ -1306,7 +1381,7 @@ def main(args: argparse.Namespace) -> None:
                         'iteration': iteration,
                         'num_objects_requested': len(selected_object_info_list),
                         'num_objects_placed': successful_placements,
-                        'individual_model_selection': True,
+                        'directory_structure_scan': True,
                         'objects': []
                     }
                     
@@ -1314,7 +1389,9 @@ def main(args: argparse.Namespace) -> None:
                         obj_detail = {
                             'index': i,
                             'object_id': obj_info['id'],
-                            'class': cls,
+                            'class_name': obj_info['class_name'],
+                            'instance_name': obj_info['instance_name'],
+                            'yolo_class': cls,
                             'position': [float(obj.location.x), float(obj.location.y), float(obj.location.z)],
                             'rotation_euler': [float(obj.rotation_euler.x), float(obj.rotation_euler.y), float(obj.rotation_euler.z)],
                             'rotation_degrees': [float(obj.rotation_euler.x*180/pi), float(obj.rotation_euler.y*180/pi), float(obj.rotation_euler.z*180/pi)],
@@ -1351,13 +1428,13 @@ def main(args: argparse.Namespace) -> None:
 
 
 if __name__ == '__main__':
-    parser = argparse.ArgumentParser(description='Multi-Object Scene Generation with Collision Detection')
+    parser = argparse.ArgumentParser(description='Multi-Object Scene Generation with Custom Directory Structure')
     parser.add_argument('--root_path', 
                        default="/home/coraguo/RIPS25-AnalogDevices-ObjectDetection/src/3d_C_P/mmdetection3d/data/sunrgbd/sunrgbd_trainval",
                        help='Root path for SUN RGB-D data')
-    parser.add_argument('--obj_root_path', 
-                       default="/home/coraguo/RIPS25-AnalogDevices-ObjectDetection/src/3d_C_P/Pace/train_ready/obj",
-                       help='Root path for 3D model data')
+    parser.add_argument('--models_root_path', 
+                       default="/path/to/your/3d_models",
+                       help='Root path for 3D models directory (class_name/instance/instance.obj structure)')
     parser.add_argument('--max_iter', type=int, default=1,
                        help='Number of iterations for each scene')
     parser.add_argument('--num_objects_per_scene', type=int, default=4,
