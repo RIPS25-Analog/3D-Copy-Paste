@@ -111,10 +111,10 @@ The enhanced framework transforms single-object, floor-restricted placement into
 
 The repository includes several utility tools for 3D model processing:
 
-- **Resize 3D models**: `resize_models.py`
+- **Resize 3D models**: `resize_3d_models.py`
 - **Format conversion**:
-  - GLB to OBJ: `convert_glb_to_obj.py`
-  - PLY to OBJ: `convert_ply_to_obj.py`
+  - GLB to OBJ: `export_glb_2_obj.py`
+  - PLY to OBJ: `export_ply_2_obj.py`
 
 
 

@@ -520,7 +520,7 @@ def calculate_surface_height(surface_info: dict) -> float:
 
 def place_object_with_six_sided_rotation(inobject: bpy.types.Object, bbox: bpy.types.Object, 
                                         surface_info: dict, position_x: float, position_y: float, 
-                                        scale: float, rotation_z: float, rotation_variety: float = 0.7) -> float:
+                                        scale: float, rotation_z: float, rotation_variety: float = 0.0) -> float:
     """
     Place object with six-sided rotation capability and perfect ground contact.
     
