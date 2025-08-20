@@ -10,18 +10,31 @@ This repository provides a pipeline for 3D Copy-Paste data augmentation by inser
 
 Please fork the following repositories under our workspace:
 
-- **[mmdetection3d](https://github.com/open-mmlab/mmdetection3d)** - 3D object detection framework
-- **[InverseRenderingOfIndoorScene](https://github.com/[username]/InverseRenderingOfIndoorScene)** - Indoor scene inverse rendering
-- **[RGBDPlaneDetection](https://github.com/[username]/RGBDPlaneDetection)** - Plane detection for object placement
+- **[mmdetection3d](https://github.com/rips25analog2025/mmdetection3d)** - 3D object detection framework
+- **[InverseRenderingOfIndoorScene](https://github.com/rips25analog2025/InverseRenderingOfIndoorScene)** - Indoor scene inverse rendering
+- **[RGBDPlaneDetection](https://github.com/rips25analog2025/RGBDPlaneDetection)** - Plane detection for object placement
 
-### Environment Setup
-## Software Used: 
+## Environment Setup
+### Software Used: 
 python and MATLAB is require for this project
 
-## Packages
+### Packages
 please install the following packages
 ```bash
-pip install -r 
+pip install numpy scipy matplotlib pillow
+
+pip install torch torchvision
+pip install tensorflow keras
+pip install jax jaxlib
+
+pip install opencv-python
+pip install scikit-learn pandas h5py
+
+pip install jupyter ipython
+pip install flake8
+
+pip install trimesh  # For advanced 3D mesh operations
+pip install open3d   # Alternative 3D processing library
 
 ```
 
@@ -137,6 +150,20 @@ insertion_ilog2_istren2_context_[timestamp]/
   author={[Authors]},
   booktitle={[Conference]},
   year={2024}
+}
+
+@misc{mmdet3d2020,
+    title={{MMDetection3D: OpenMMLab} next-generation platform for general {3D} object detection},
+    author={MMDetection3D Contributors},
+    howpublished = {\url{https://github.com/open-mmlab/mmdetection3d}},
+    year={2020}
+}
+
+@misc{lzqsd,
+   title={{Inverse Rendering of Indoor Scene: RIPS 2025 Analog Devices Project}},
+   author={zhengqinli},
+   howpublished = {\url{https://github.com/lzqsd/InverseRenderingOfIndoorScene}},
+   year={2025}
 }
 ```
 
